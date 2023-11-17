@@ -1,17 +1,26 @@
+import tkinter as tk
+
 # Tamanho do tabuleiro de damas
 tam_tabuleiro = 8
+tamanho_celula = 60  # Tamanho de cada célula do tabuleiro em pixels
 
 # Inicializar o tabuleiro de damas
 tabuleiro = [[' ' for _ in range(tam_tabuleiro)] for _ in range(tam_tabuleiro)]
+jogador_atual = 'O'
+peca_selecionada = None  # Nenhuma peça selecionada inicialmente
 
-# Função para exibir o tabuleiro de damas
-def exibir_tabuleiro(tabuleiro):
-    for linha in tabuleiro:
-        print(' | '.join(linha))
-        print('-' * (tam_tabuleiro * 4 - 1))
+# Função para desenhar o tabuleiro
+def desenhar_tabuleiro():
+    global canvas
+    for i in range(tam_tabuleiro):
+        for j in range(tam_tabuleiro):
+            cor = 'white' if (i + j) % 2 == 0 else 'gray'
+            canvas.create_rectangle(j * tamanho_celula, i * tamanho_celula, 
+                                    (j + 1) * tamanho_celula, (i + 1) * tamanho_celula, 
+                                    fill=cor)
 
 # Função para inicializar as peças no tabuleiro
-def inicializar_pecas(tabuleiro):
+def inicializar_pecas():
     for i in range(tam_tabuleiro):
         for j in range(tam_tabuleiro):
             if (i + j) % 2 == 1:
@@ -20,54 +29,102 @@ def inicializar_pecas(tabuleiro):
                 elif i > 4:
                     tabuleiro[i][j] = 'X'  # Peças do jogador 2 (X)
 
-# Função para mover uma peça
-def mover_peca(tabuleiro, movimento, jogador):
-    # Separar as coordenadas de origem e destino a partir do movimento
-    origem, destino = movimento.split()
+# Função para desenhar as peças no tabuleiro
+def desenhar_pecas():
+    global canvas
+    for i in range(tam_tabuleiro):
+        for j in range(tam_tabuleiro):
+            peca = tabuleiro[i][j]
+            if peca != ' ':
+                centro_x = j * tamanho_celula + tamanho_celula // 2
+                centro_y = i * tamanho_celula + tamanho_celula // 2
+                canvas.create_oval(centro_x - 20, centro_y - 20, 
+                                   centro_x + 20, centro_y + 20, 
+                                   fill='black' if peca == 'X' else 'red')
 
-    # Converter as coordenadas para índices da matriz
-    origem_x, origem_y = ord(origem[0].lower()) - ord('a'), int(origem[1]) - 1
-    destino_x, destino_y = ord(destino[0].lower()) - ord('a'), int(destino[1]) - 1
+# Função para atualizar o tabuleiro
+def atualizar_tabuleiro():
+    global canvas
+    canvas.delete("all")
+    desenhar_tabuleiro()
+    desenhar_pecas()
 
-    # Verificar se a origem e o destino estão dentro dos limites do tabuleiro
-    if not (0 <= origem_x < tam_tabuleiro and 0 <= origem_y < tam_tabuleiro and
-            0 <= destino_x < tam_tabuleiro and 0 <= destino_y < tam_tabuleiro):
-        print("Movimento fora dos limites do tabuleiro.")
-        return False
+# Função para lidar com o clique do mouse no tabuleiro
+def clique_tabuleiro(event):
+    global jogador_atual, peca_selecionada
+    coluna = event.x // tamanho_celula
+    linha = event.y // tamanho_celula
 
-    # Verificar se a origem contém uma peça do jogador atual
-    if tabuleiro[origem_y][origem_x] != jogador:
-        print("Você não possui uma peça na posição de origem.")
-        return False
+    if peca_selecionada:
+        if movimento_valido(linha, coluna):
+            # Movimentar a peça selecionada
+            linha_origem, coluna_origem = peca_selecionada
+            tabuleiro[linha][coluna] = jogador_atual
+            tabuleiro[linha_origem][coluna_origem] = ' '
 
-    # Verificar se o movimento é diagonal de uma casa para frente
-    if abs(destino_x - origem_x) == 1 and abs(destino_y - origem_y) == 1:
-        # Verificar se o destino está vazio
-        if tabuleiro[destino_y][destino_x] == ' ':
-            # Realizar o movimento
-            tabuleiro[origem_y][origem_x] = ' '
-            tabuleiro[destino_y][destino_x] = jogador
-            return True
+            # Verificar e realizar captura de peça
+            if abs(linha - linha_origem) == 2:
+                linha_captura = (linha_origem + linha) // 2
+                coluna_captura = (coluna_origem + coluna) // 2
+                tabuleiro[linha_captura][coluna_captura] = ' '
+
+            limpar_selecao()
+            alternar_jogador()
         else:
-            print("A casa de destino já está ocupada.")
-            return False
+            limpar_selecao()
     else:
-        print("Movimento inválido. Movimento diagonal de uma casa para frente permitido.")
-        return False
+        if tabuleiro[linha][coluna] == jogador_atual:
+            # Selecionar uma peça
+            peca_selecionada = (linha, coluna)
 
-# Função principal do jogo de damas
-def jogar_damas():
-    inicializar_pecas(tabuleiro)
-    jogador_atual = 'O'
+    atualizar_tabuleiro()
 
-    while True:
-        exibir_tabuleiro(tabuleiro)
-        print(f'É a vez do jogador {jogador_atual}')
-        movimento = input('Informe o movimento (por exemplo, "e3 d4"): ')
+def movimento_valido(linha_destino, coluna_destino):
+    linha_origem, coluna_origem = peca_selecionada
+    oponente = 'X' if jogador_atual == 'O' else 'O'
+    direcao = 1 if jogador_atual == 'O' else -1
 
-        if mover_peca(tabuleiro, movimento, jogador_atual):
-            # Troque o jogador após um movimento válido
-            jogador_atual = 'X' if jogador_atual == 'O' else 'O'
+    # Movimento simples para frente
+    movimento_simples = linha_destino == linha_origem + direcao and abs(coluna_destino - coluna_origem) == 1
 
-# Iniciar o jogo de damas
-jogar_damas()
+    # Captura para frente
+    captura_frente = (
+        linha_destino == linha_origem + 2 * direcao and 
+        abs(coluna_destino - coluna_origem) == 2 and 
+        tabuleiro[linha_origem + direcao][coluna_origem + (coluna_destino - coluna_origem) // 2] == oponente
+    )
+
+    # Captura para trás
+    captura_tras = (
+        linha_destino == linha_origem - 2 * direcao and 
+        abs(coluna_destino - coluna_origem) == 2 and 
+        tabuleiro[linha_origem - direcao][coluna_origem + (coluna_destino - coluna_origem) // 2] == oponente
+    )
+
+    return movimento_simples or captura_frente or captura_tras
+
+def limpar_selecao():
+    global peca_selecionada
+    peca_selecionada = None
+
+def alternar_jogador():
+    global jogador_atual
+    jogador_atual = 'X' if jogador_atual == 'O' else 'O'
+
+# Inicializa a janela do Tkinter
+def iniciar_jogo():
+    global canvas
+    root = tk.Tk()
+    root.title("Jogo de Damas")
+    canvas = tk.Canvas(root, width=tam_tabuleiro * tamanho_celula, height=tam_tabuleiro * tamanho_celula)
+    canvas.pack()
+    canvas.bind("<Button-1>", clique_tabuleiro)
+
+    inicializar_pecas()
+    atualizar_tabuleiro()
+
+    root.mainloop()
+
+# Iniciar o jogo
+iniciar_jogo()
+
